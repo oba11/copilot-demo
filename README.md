@@ -1,4 +1,8 @@
-# App Mesh Demo
+# Copilot Demo
+
+This repo contains a project of two microservices which can be extended to multiple microservices.
+
+The frontend is a simple nodejs application which calls api for dynamic giphy images. The backend is a golang application which calls giphy API to retrieve images and responds back with previous history of giphy responses.
 
 ## Requirements
 
@@ -15,10 +19,18 @@ curl -Lo $HOME/.local/bin/copilot https://github.com/aws/copilot-cli/releases/do
 Deploy the frontend
 
 ```bash
-copilot svc deploy
+make deploy-frontend
+```
+
+Deploy the api
+
+```bash
+make deploy-api
 ```
 
 ## Cleanup
 ```bash
 copilot app delete
+OR
+make delete
 ```

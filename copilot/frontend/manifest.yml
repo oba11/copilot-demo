@@ -12,3 +12,8 @@ http:
 cpu: 256
 memory: 512
 count: 1
+
+sidecars:
+  xray-daemon:
+    port: 2000/udp
+    image: amazon/aws-xray-daemon:latest

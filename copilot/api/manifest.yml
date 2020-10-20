@@ -9,3 +9,11 @@ image:
 cpu: 256
 memory: 512
 count: 1
+
+variables:
+  ENABLE_XRAY_TRACING: "true"
+
+sidecars:
+  xray-daemon:
+    port: 2000/udp
+    image: amazon/aws-xray-daemon:latest

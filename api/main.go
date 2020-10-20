@@ -5,8 +5,10 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
+	"strconv"
 
-	"github.com/gorilla/mux"
+	"github.com/aws/aws-xray-sdk-go/xray"
 )
 
 // Payload struct for response passed to frontend
@@ -21,16 +23,45 @@ type GiphyStruct struct {
 	Meta map[string]interface{} `json:"meta"`
 }
 
-var payloads []Payload
+var (
+	enableXrayTracing bool
+	payloads          []Payload
+)
 
-func getGiphy(w http.ResponseWriter, r *http.Request) {
+func init() {
+	if enable, err := strconv.ParseBool(os.Getenv("ENABLE_XRAY_TRACING")); err == nil {
+		enableXrayTracing = enable
+	}
+
+	if enableXrayTracing {
+		xray.Configure(xray.Config{
+			LogLevel: "warn",
+		})
+	}
+}
+
+type giphyHandler struct{}
+
+func (h *giphyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var out GiphyStruct
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
+	req, err := http.NewRequest(http.MethodGet, "https://api.giphy.com/v1/gifs/random?api_key=0UTRbFtkMxAplrohufYco5IY74U8hOes&tag=fail&rating=g", nil)
+	if err != nil {
+		return
+	}
+
+	var client *http.Client
+	if enableXrayTracing {
+		client = xray.Client(&http.Client{})
+	} else {
+		client = &http.Client{}
+	}
+
 	for i := 0; i < 2; i++ {
-		resp, err := http.Get("https://api.giphy.com/v1/gifs/random?api_key=0UTRbFtkMxAplrohufYco5IY74U8hOes&tag=fail&rating=g")
+		resp, err := client.Do(req.WithContext(r.Context()))
 		if err != nil {
 			return
 		}
@@ -46,13 +77,26 @@ func getGiphy(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(payloads)
 }
 
-func indexHandler(w http.ResponseWriter, r *http.Request) {
+type indexHandler struct{}
+
+func (h *indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("OK"))
 }
 
 func main() {
-	r := mux.NewRouter()
-	r.HandleFunc("/giphy", getGiphy).Methods("GET")
-	r.HandleFunc("/", indexHandler).Methods("GET")
-	log.Fatal(http.ListenAndServe(":80", r))
+
+	var giphy http.Handler
+	var healthcheck http.Handler
+	if enableXrayTracing {
+		xraySegmentNamer := xray.NewFixedSegmentNamer("api")
+		giphy = xray.Handler(xraySegmentNamer, &giphyHandler{})
+		healthcheck = xray.Handler(xraySegmentNamer, &indexHandler{})
+	} else {
+		giphy = &giphyHandler{}
+		healthcheck = &indexHandler{}
+	}
+
+	http.Handle("/", healthcheck)
+	http.Handle("/giphy", giphy)
+	log.Fatal(http.ListenAndServe(":80", nil))
 }
