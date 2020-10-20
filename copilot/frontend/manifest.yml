@@ -1,0 +1,14 @@
+name: frontend
+type: Load Balanced Web Service
+
+image:
+  build: frontend/Dockerfile
+  port: 3000
+
+http:
+  path: '/'
+  healthcheck: '/health'
+
+cpu: 256
+memory: 512
+count: 1

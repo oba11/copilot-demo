@@ -1,0 +1,11 @@
+name: api
+
+type: Backend Service
+
+image:
+  build: api/Dockerfile
+  port: 80
+
+cpu: 256
+memory: 512
+count: 1
