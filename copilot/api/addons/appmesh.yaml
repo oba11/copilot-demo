@@ -1,0 +1,75 @@
+Parameters:
+    App:
+      Type: String
+      Description: Your application's name.
+    Env:
+      Type: String
+      Description: The environment name your service, job, or workflow is being deployed to.
+    Name:
+      Type: String
+      Description: The name of the service, job, or workflow being deployed.
+  
+Resources:
+  VirtualNode:
+    Type: AWS::AppMesh::VirtualNode
+    Properties:
+      MeshName: !Sub '${App}-${Env}'
+      VirtualNodeName: !Sub '${Name}'
+      Spec:
+        Listeners:
+        - PortMapping:
+            Port: 80
+            Protocol: http
+          HealthCheck:
+            HealthyThreshold: 2
+            IntervalMillis: 5000
+            TimeoutMillis: 2000
+            UnhealthyThreshold: 3
+            Port: 80
+            Path: /
+            Protocol: http
+        ServiceDiscovery:
+          AWSCloudMap:
+            NamespaceName: !Sub '${App}.local'
+            ServiceName: !Sub '${Name}'
+            Attributes:
+            - Key: ECS_TASK_DEFINITION_FAMILY
+              Value: !Sub '${App}-${Env}-${Name}'
+  VirtualRouter:
+    Type: AWS::AppMesh::VirtualRouter
+    Properties:
+      MeshName: !Sub '${App}-${Env}'
+      VirtualRouterName: !Sub '${Name}'
+      Spec:
+        Listeners:
+        - PortMapping:
+            Port: 80
+            Protocol: http
+  VirtualService:
+    Type: AWS::AppMesh::VirtualService
+    Properties:
+      MeshName: !Sub '${App}-${Env}'
+      VirtualServiceName: !Sub '${Name}'
+      Spec:
+        Provider:
+          VirtualRouter:
+            VirtualRouterName: !GetAtt VirtualRouter.VirtualRouterName
+  Route:
+    Type: AWS::AppMesh::Route
+    Properties:
+      MeshName: !Sub '${App}-${Env}'
+      VirtualRouterName: !GetAtt VirtualRouter.VirtualRouterName
+      RouteName: !Sub '${Name}'
+      Spec:
+        HttpRoute:
+          Action:
+            WeightedTargets:
+            - VirtualNode: !GetAtt VirtualNode.VirtualNodeName
+              Weight: 1
+          Match:
+            Prefix: /
+
+Outputs:
+  ECSPolicyArn:
+    Description: "The ARN of the ManagedPolicy to attach to the task role"
+    Value: !Ref ECSPolicy
